@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lobby</title>
+    <script src="/javascript/router.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <!-- Bootstrap CSS and JS-->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome CSS -->
+    <script defer src="/fontawesome/fontawesome.js"></script>
+    <script defer src="/fontawesome/regular.min.js"></script>
+    <script defer src="/fontawesome/solid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.5.1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <script src="/swipe.js"></script>
+</head>
+
+<script>
+    let lobbyName;
+    let ownPlayerObject;
+
+    function connect(lobbyName) {
+        const socket = new SockJS('/ws');
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, function (frame) {
+            console.log('Connected: ' + frame);
+            stompClient.subscribe('/topic/game/' + lobbyName, function (message) {
+                console.log("Received message: " + message.body);
+                update();
+            });
+        });
+    }
+
+    $(document).ready(async function() {
+        await routeToCorrectPage();
+        lobbyName = await $.get("/getCurrentLobbyName", function(data) { return data; });
+        connect(lobbyName);
+        update();
+        $(".leave-button").click(leaveLobby);
+    });
+
+    function leaveLobby() {
+        $.ajax({
+            type: "POST",
+            url: "/leaveLobby",
+            xhrFields: {
+                withCredentials: true
+            },
+            success: function() {
+                window.location.href = "/";
+            },
+            error: function(xhr, status, error) {
+                console.error("Error leaving lobby:", status, error, xhr.responseText);
+            }
+        });
+    }
+
+    let updateAjaxRequest;
+    function update() {
+
+        if (updateAjaxRequest) {
+            updateAjaxRequest.abort();
+        }
+
+        // First deleting all the existing lobbies
+        $(".players-container").empty();
+
+        // Making a request to the server to get the lobbies
+        updateAjaxRequest = $.ajax({
+            type: "GET",
+            url: "/getSelf",
+            xhrFields: {
+                withCredentials: true
+            },
+            success: function (data) {
+                if (data) {
+                    ownPlayerObject = data;
+
+                    if(ownPlayerObject.currentAction === "Confirming")
+                        confirming();
+                    else if(ownPlayerObject.currentAction === "Waiting")
+                        clearTapContainer(true);
+                    else if(ownPlayerObject.currentAction === "Doppelganger")
+                        showDoppelganger();
+                    else if(ownPlayerObject.currentAction === "Werewolf")
+                        showWereWolf();
+                    else if(ownPlayerObject.currentAction === "Seer")
+                        showSeer();
+                    else if(ownPlayerObject.currentAction === "Hunter")
+                        showHunter();
+                    else if(ownPlayerObject.currentAction === "Villager")
+                        showVillager();
+                    else if(ownPlayerObject.currentAction === "Voted")
+                        showVoted();
+                    else if(ownPlayerObject.currentAction === "HunterKilled")
+                        showHunterKilled();
+                    else if(ownPlayerObject.currentAction === "HunterDay")
+                        showHunterDay();
+                    else if(ownPlayerObject.currentAction === "GameDone")
+                        gameDone();
+                }
+            }
+        });
+    }
+
+    function confirming() {
+        showTapContainer("Your role is " + ownPlayerObject.role + ".", {id: "Confirm", name: "Confirm"}).then((id) => {
+            $.ajax({
+                type: "POST",
+                url: "/setGameAction",
+                xhrFields: {
+                    withCredentials: true
+                },
+                data: {
+                    action: "Waiting"
+                },
+                success: function() {
+                    update();
+                }
+            });
+        });
+    }
+
+    function showDoppelganger() {
+        clearTapContainer(false);
+        $.get("/getPlayers", function(data) {
+            let options = [];
+            data.players.forEach(player => {
+                if(player.role !== "Doppelganger") {
+                    options.push({id: player.username, name: player.username});
+                }
+            });
+            showTapContainer("You are the doppelganger. Choose a player to copy.", options).then((username) => {
+                clearTapContainer(false);
+                let selectedPlayer = null;
+                data.players.forEach(player => {
+                    if(player.username === username)
+                        selectedPlayer = player;
+                });
+                showTapContainer("You have copied the role of " + selectedPlayer.username + ". Your new role is " + selectedPlayer.role + ".", {id: "Confirm", name: "Confirm"}).then((id) => {
+                    clearTapContainer(true);
+                    $.ajax({
+                        type: "POST",
+                        url: "/copyPlayersRole",
+                        xhrFields: {
+                            withCredentials: true
+                        },
+                        data: {
+                            username: username
+                        },
+                        success: function () {
+                            update();
+                        }
+                    });
+                });
+            });
+        });
+    }
+
+    function showWereWolf() {
+        clearTapContainer(false);
+        $.get("/getPlayers", function(data) {
+            let options = [];
+            let playersWithWerewolfVotes = [];
+            let werewolfPlayers = [];
+            data.players.forEach(player => {
+                if(player.role === "Werewolf")
+                    werewolfPlayers.push(player);
+                if(player.role !== "Werewolf")
+                    options.push({id: player.username, name: player.username});
+                if(player.werewolfVotes)
+                    playersWithWerewolfVotes.push(player);
+            });
+
+            let text = "You are the only werewolf. Choose who to kill.";
+
+            if(werewolfPlayers.length === 2) {
+                let otherWerewolf = werewolfPlayers.find(player => player.username !== ownPlayerObject.username);
+                text = "You are one of two werewolves. The other werewolf is " + otherWerewolf.username + ".";
+                if(playersWithWerewolfVotes.length === 0)
+                    text += " You are the first werewolf to vote.";
+            } else if(werewolfPlayers.length > 2) {
+                text = "You are one of " + werewolfPlayers.length + " werewolves.";
+                if(playersWithWerewolfVotes.length === 1)
+                    text += " One of the werewolves has already voted.";
+                else if(playersWithWerewolfVotes.length > 1)
+                    text += " Some of the werewolves have already voted.";
+                else
+                    text += " You are the first werewolf to vote.";
+            }
+
+            if(playersWithWerewolfVotes.length > 1) {
+                playersWithWerewolfVotes.forEach(player => {
+                    text += player.username + "has " + (player.werewolfVotes === 1 ? "one vote" : player.werewolfVotes + " votes") + ", ";
+                });
+            } else if(playersWithWerewolfVotes.length === 1) {
+                let playerWithVotes = playersWithWerewolfVotes[0];
+                if(werewolfPlayers.length === 2)
+                    text += " The other werewolf voted for " + playerWithVotes.username + ". Who do you vote for?";
+                else
+                    text += " " + playerWithVotes.username + " has " + (playerWithVotes.werewolfVotes === 1 ? "one vote" : playerWithVotes.werewolfVotes + " votes") + " against them.";
+            }
+            showTapContainer(text, options).then((username) => {
+                clearTapContainer(true);
+                $.ajax({
+                    type: "POST",
+                    url: "/doWerewolfVote",
+                    xhrFields: {
+                        withCredentials: true
+                    },
+                    data: {
+                        username: username
+                    },
+                    success: function() {
+                        update();
+                    }
+                });
+            });
+        });
+    }
+
+    function showSeer() {
+        clearTapContainer(false);
+        $.get("/getPlayers", function(data) {
+            let options = [];
+            data.players.forEach(player => {
+                if(player.username !== ownPlayerObject.username)
+                    options.push({id: player.username, name: player.username});
+            });
+            showTapContainer("You are the seer. Choose who to check.", options).then((username) => {
+                clearTapContainer(false);
+                doSeerCheck(username);
+            });
+        });
+    }
+
+    function doSeerCheck(username) {
+        clearTapContainer(false);
+        $.get("/getPlayers", function(data) {
+            let theRole = "";
+            data.players.forEach(player => {
+                if(player.username === username) {
+                    theRole = player.role;
+                }
+            });
+            showTapContainer("The role of " + username + " is " + theRole + ".", {id: "Confirm", name: "Confirm"}).then((id) => {
+                clearTapContainer(true);
+                $.ajax({
+                    type: "POST",
+                    url: "/setGameAction",
+                    xhrFields: {
+                        withCredentials: true
+                    },
+                    data: {
+                        action: "Waiting"
+                    },
+                    success: function() {
+                        update();
+                    }
+                });
+                waiting();
+            });
+        });
+    }
+
+    function showHunter() {
+        clearTapContainer(false);
+        $.get("/getPlayers", function(data) {
+            let options = [];
+            data.players.forEach(player => {
+                if(player.username != ownPlayerObject.username && player.alive)
+                    options.push({id: player.username, name: player.username});
+            });
+            showTapContainer("You got killed. Choose who to kill.", options).then((username) => {
+                clearTapContainer(true);
+                $.ajax({
+                    type: "POST",
+                    url: "/doHunterKill",
+                    xhrFields: {
+                        withCredentials: true
+                    },
+                    data: {
+                        username: username
+                    },
+                    success: function() {
+                        update();
+                    }
+                });
+            });
+        });
+    }
+
+    function showVillager() {
+        clearTapContainer(false);
+        $.get("/getPlayers", function(data) {
+            let killedPlayers = [];
+            let remainingPlayers = [];
+            data.players.forEach(player => {
+                if(player.username === ownPlayerObject.username)
+                    ownPlayerObject = player;
+                if(!player.alive)
+                    killedPlayers.push(player);
+                else
+                    remainingPlayers.push(player);
+            });
+            if(!ownPlayerObject.alive) {
+                showTapContainer("You are dead. Please wait.");
+            } else {
+                let options = [];
+                data.players.forEach(player => {
+                    if(player.alive && player.username !== ownPlayerObject.username)
+                        options.push({id: player.username, name: player.username});
+                });
+                let text = "The village is awake again.";
+                if(killedPlayers.length === 1)
+                    text += " The player " + killedPlayers[0].username + " has died. ";
+                else if (killedPlayers.length > 1)
+                    text += " The players " + getListOfPlayersText(killedPlayers) + " have died. ";
+                text += " The remaining players are " + getListOfPlayersText(remainingPlayers) + ". ";
+                text += " Who do you vote for?";
+                showTapContainer(text, options).then((username) => {
+                    clearTapContainer(true);
+                    $.ajax({
+                        type: "POST",
+                        url: "/doVillagerVote",
+                        xhrFields: {
+                            withCredentials: true
+                        },
+                        data: {
+                            username: username
+                        },
+                        success: function() {
+                            update();
+                        }
+                    });
+                });
+            }
+        });
+    }
+
+    function getListOfPlayersText(players) {
+        let text = "";
+        players.forEach((player, index) => {
+            if(index === players.length - 1)
+                text += " and ";
+            else if(index > 0)
+                text += ", ";
+            text += player.username;
+        });
+        return text;
+    }
+
+    function showVoted() {
+        showTapContainer("Please wait until all players have voted...");
+    }
+
+    function showHunterKilled() {
+        clearTapContainer(false);
+        $.get("/getPlayers", function(data) {
+            let killedPlayer = null;
+            data.players.forEach(player => {
+                if(player.killedByVillage)
+                    killedPlayer = player;
+            });
+            let text = "The villagers have killed " + killedPlayer.username + ". They were a hunter and can now kill another player. Please wait.";
+            showTapContainer(text);
+        });
+    }
+
+    function showHunterDay() {
+        clearTapContainer(false);
+        $.get("/getPlayers", function(data) {
+            let options = [];
+            data.players.forEach(player => {
+                if(player.username != ownPlayerObject.username && player.alive)
+                    options.push({id: player.username, name: player.username});
+            });
+            showTapContainer("You were killed by the village. Choose who to kill.", options).then((username) => {
+                clearTapContainer(false);
+                $.ajax({
+                    type: "POST",
+                    url: "/doHunterKillDay",
+                    xhrFields: {
+                        withCredentials: true
+                    },
+                    data: {
+                        username: username
+                    },
+                    success: function() {
+                        update();
+                    }
+                });
+            });
+        });
+    }
+
+    function gameDone() {
+        clearTapContainer(false);
+        $.get("/getPlayers", function(data) {
+            let text = getGameEndText(data.players);
+            showTapContainer(text, {id: "Leave", name: "Leave Lobby"}).then(leaveLobby);
+        });
+    }
+
+    function getGameEndText(players) {
+        let killedByVillagePlayer = null;
+        let killedByHunterDayPlayer = null;
+        let werewolfKilled = null;
+        let killedDuringNightPlayers = [];
+        let alivePlayers = [];
+        players.forEach(player => {
+            if(player.killedByVillage)
+                killedByVillagePlayer = player;
+            if(player.killedByHunterDuringDay)
+                killedByHunterDayPlayer = player;
+            if(player.role === "Werewolf" && !player.alive)
+                werewolfKilled = player;
+            if(!player.alive && !player.killedByVillage && !player.killedByHunterDuringDay)
+                killedDuringNightPlayers.push(player);
+            if(player.alive)
+                alivePlayers.push(player);
+        });
+        if(!killedByVillagePlayer) {
+            let text = "";
+            if(werewolfKilled) {
+                if(werewolfKilled.length === 1)
+                    text += " The player " + killedPlayers[0].username + " has died. ";
+                else if (werewolfKilled.length > 1)
+                    text += "The players " + getListOfPlayersText(killedDuringNightPlayers) + " have died during the night. ";
+                text += " Player " + werewolfKilled.username + " was a werewolf. The villagers win!";
+                return text;
+            } else {
+                let text = "The players " + getListOfPlayersText(killedDuringNightPlayers) + " have died during the night. ";
+                if(alivePlayers.length === 1)
+                    text += " The remaining player " + alivePlayers[0].username + " is a werewolf. The werewolves win!";
+                else
+                    text += " The remaining players are werewolves. The werewolves win!";
+                return text;
+            }
+        } else if (killedByVillagePlayer && !killedByHunterDayPlayer) {
+            if(werewolfKilled) {
+                let text = "The village has killed " + killedByVillagePlayer.username + ". They were a " + killedByVillagePlayer.role + ". ";
+                text += " The villagers win!";
+                return text;
+            } else {
+                let text = "The village has killed " + killedByVillagePlayer.username + ". They were a " + killedByVillagePlayer.role + ". ";
+                text += " The werewolves win!";
+                return text;
+            }
+        } else if(killedByHunterDayPlayer) {
+            let text = "The hunter has killed " + killedByHunterDayPlayer.username + ". They were a " + killedByHunterDayPlayer.role + ".";
+            if(werewolfKilled)
+                text += " The villagers win!";
+            else
+                text += " The werewolves win!";
+            return text;
+        }
+        return "Error";
+    }
+
+    function clearTapContainer(doSpeak) {
+
+        if($("#text").text() === "Please wait")
+            return;
+
+        $("#text").text("Please wait");
+        $("#selection").empty();
+        $("#selection").off("dblclick");
+        $("#selection").off("click");
+
+        if(doSpeak)
+            speak("Please wait", false);
+    }
+
+    function showTapContainer(text, options) {
+        $("#text").text(text);
+        $("#selection").empty();
+        $("#selection").off("dblclick");
+        $("#selection").off("click");
+
+        if(options && !Array.isArray(options) && options.id === "Confirm")
+            text += " Double tap to confirm.";
+
+        speak(text, false);
+
+        if(!options)
+            return null;
+
+        let promiseResolve = null;
+        let optionSelectPromise = new Promise((resolve, reject) => {
+            promiseResolve = resolve;
+        });
+
+        // check if options is an array
+        if(!Array.isArray(options)) {
+            $("#selection").html(options.name);
+            setTimeout(() => {
+                $("#selection").on("dblclick", function() {
+                    promiseResolve(options.id);
+                });
+                $("#selection").on("click", function() {
+                    speak(options.name, true);
+                });
+            }, 200);
+        } else {
+            let swipeContainer = $("<div id='slider' class='swipe'>");
+            let swipeWrapper = $("<div class='swipe-wrap'></div>");
+            swipeContainer.append(swipeWrapper);
+            $("#selection").html(swipeContainer);
+
+            let swipeSlide = $("<div class='swipe-option'>Swipe to select</div>");
+            swipeWrapper.append(swipeSlide);
+
+            options.forEach(option => {
+                let swipeSlide = $("<div class='swipe-option'></div>");
+                swipeSlide.text(option.name);
+                swipeSlide.data("id", option.id);
+                setTimeout(() => {
+                    swipeSlide.on("dblclick", function() {
+                        promiseResolve(option.id);
+                    });
+                }, 200);
+                swipeWrapper.append(swipeSlide);
+            });
+
+            speak("Swipe to select", false);
+
+            setTimeout(() => {
+                new Swipe(swipeContainer.get(0), {
+                    startSlide: 0,
+                    speed: 400,
+                    continuous: false,
+                    disableScroll: true,
+                    draggable: true,
+                    callback: function(index, elem) {
+                        speak($(elem).text(), false);
+                    }
+                });
+            }, 100);
+
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 100);
+
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 100);
+
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 300);
+        }
+        return optionSelectPromise;
+    }
+
+    // Speak text when tapped
+    $(document).ready(async function() {
+        $("#text").on("click", function() {
+            speak($("#text").text(), true);
+        });
+    });
+
+    let speechQueue = [];
+
+    function speak(text, isFromTap) {
+        if(isFromTap && speechQueue.length > 0)
+            return;
+
+        speechQueue.push(text);
+
+        if(speechQueue.length === 1)
+            doSpeakQueue();
+    }
+    function doSpeakQueue() {
+        if(speechQueue.length === 0)
+            return;
+
+        let msg = new SpeechSynthesisUtterance();
+        var voices = window.speechSynthesis.getVoices();
+
+        msg.volume = 1; // 0 to 1
+        msg.rate = 1; // 0.1 to 10
+        msg.pitch = 2; //0 to 2
+        msg.text = speechQueue[0];
+        msg.lang = 'en-US';
+
+        msg.addEventListener('end', function() {
+            speechQueue.shift();
+            doSpeakQueue();
+        });
+        window.speechSynthesis.speak(msg);
+    }
+</script>
+
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+    }
+
+    #wrapper {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        width: 100%;
+    }
+
+    #tap-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+        cursor: pointer;
+    }
+
+    .tap-area {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        font-size: 2rem;
+        color: white;
+        padding: 10px 20px;
+        margin: 0 0 7px;
+        outline: none;
+        border: 0;
+        width: 100%;
+        height: 50%;
+        text-align: center;
+    }
+
+    #text {
+        background-color: #648c9d; /* Blue for role tap area */
+    }
+
+    #selection {
+        background-color: #749d4d; /* Green for confirm tap area */
+    }
+
+    .swipe {
+        overflow: hidden;
+        visibility: hidden;
+        position: relative;
+    }
+    .swipe-wrap {
+        overflow: hidden;
+        position: relative;
+    }
+    .swipe-wrap > div {
+        float: left;
+        width: 100%;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .swipe-option {
+        height: 45vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+
+<body>
+    <div id="wrapper">
+        <div id="tap-container" class="d-flex mt-3 gap-3 flex-column">
+            <div id="text" class="role tap-area"></div>
+            <div id="selection" class="tap-area"></div>
+        </div>
+    </div>
+</body>
+
+</html>

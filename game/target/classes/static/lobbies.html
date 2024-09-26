@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Werewolf</title>
+    <script src="/javascript/router.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <!-- Bootstrap CSS and JS-->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome CSS -->
+    <script defer src="/fontawesome/fontawesome.js"></script>
+    <script defer src="/fontawesome/regular.min.js"></script>
+    <script defer src="/fontawesome/solid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.5.1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+</head>
+
+<script>
+    let lobbyToJoin = "";
+
+    function connect() {
+        const socket = new SockJS('/ws');
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, function (frame) {
+            console.log('Connected: ' + frame);
+            stompClient.subscribe('/topic/lobbies', function (message) {
+                console.log("Received message: " + message.body);
+                loadLobbies();
+            });
+        });
+    }
+
+    // we wait for the document to load
+    $(document).ready(async function() {
+
+        await routeToCorrectPage();
+
+        connect();
+
+        loadLobbies();
+
+        // when the create lobby button is clicked, we open a modal to create a lobby
+        $(".create-lobby-button").click(function() {
+            $("#createLobbyModal").modal("show");
+        });
+
+        // when the create button in the modal is clicked, we send a request to the server to create the lobby
+        $(".submit-create-lobby-button").click(function() {
+            var lobbyName = $(".create-lobby-username-input").val();
+            $(".create-lobby-username-input").val("");
+            $("#createLobbyModal").modal("hide");
+            $.ajax({
+                type: "POST",
+                url: "/createLobby",
+                xhrFields: {
+                    withCredentials: true
+                },
+                data: {
+                    lobbyName: lobbyName
+                }
+            });
+        });
+
+        // when the join button in the modal is clicked, we send a request to the server to join the lobby
+        $(".join-lobby-button").click(function() {
+            var username = $(".join-lobby-username-input").val();
+            $.ajax({
+                type: "POST",
+                url: "/joinLobby",
+                xhrFields: {
+                    withCredentials: true
+                },
+                data: {
+                    lobbyName: lobbyToJoin,
+                    username: username
+                },
+                success: function(data) {
+                    if (data) {
+                        window.location.href = "lobby.html";
+                    }
+                }
+            });
+        });
+    });
+
+    function loadLobbies() {
+        // first we delete all the existing lobbies
+        $(".lobbies-container").empty();
+
+        // we make a request to the server to get the lobbies
+        $.ajax({
+            type: "GET",
+            url: "/getLobbies",
+            xhrFields: {
+                withCredentials: true
+            },
+            success: function(data) {
+                data.forEach(function(lobby) {
+                    console.log(lobby);
+                    // we create a new card for the lobby with a join button
+                    var card = $("<div class='card'>");
+                    var cardBody = $("<div class='card-body'>");
+                    var cardTitle = $("<h5 class='card-title'>").text(lobby)
+                    var joinButton = $("<button class='btn btn-primary'>").text("Join Lobby");
+                    joinButton.click(function() {
+                        // when the join button is clicked, we open a modal to join the lobby by selecting a username
+                        $("#joinLobbyModal").modal("show");
+                        lobbyToJoin = lobby;
+                    });
+                    cardBody.append(cardTitle);
+                    cardBody.append(joinButton);
+                    card.append(cardBody);
+                    $(".lobbies-container").append(card);
+                });
+            }
+        });
+    }
+
+    function speak(text) {
+        var msg = new SpeechSynthesisUtterance();
+        var voices = window.speechSynthesis.getVoices();
+        //msg.voice = voices[10]; // Note: some voices don't support altering params
+        //msg.voiceURI = 'native';
+        msg.volume = 1; // 0 to 1
+        msg.rate = 1; // 0.1 to 10
+        msg.pitch = 2; //0 to 2
+        msg.text = text;
+        msg.lang = 'en-US';
+
+        msg.onend = function(e) {
+            console.log('Finished in ' + event.elapsedTime + ' seconds.');
+        };
+
+        speechSynthesis.speak(msg);
+    }
+</script>
+
+
+<body>
+
+<div class="modal fade" id="joinLobbyModal" tabindex="-1" aria-labelledby="joinLobbyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="joinLobbyModalLabel">Join Lobby</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-control join-lobby-username-input" placeholder="Enter your username">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary join-lobby-button">Join</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="createLobbyModal" tabindex="-1" aria-labelledby="createLobbyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createLobbyModalLabel">Create Lobby</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-control create-lobby-username-input" placeholder="Enter the lobby name">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary submit-create-lobby-button">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container d-flex mt-3 gap-3 flex-column">
+    <h1>Existing Lobbies</h1>
+    <div class="lobbies-container d-flex flex-column gap-3"></div>
+
+    <button type="button" class="btn btn-primary create-lobby-button">
+        <i class="fas fa-users me-2"></i>Create Lobby
+    </button>
+    <button type="button" class="btn btn-primary" onclick="speak('this is a test')">
+        <i class="fas fa-users me-2"></i>this is a test
+    </button>
+</div>
+
+
+</body>
+</html>
