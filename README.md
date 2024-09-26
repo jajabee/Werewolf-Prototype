@@ -20,7 +20,8 @@ The backend uses Spring and Spring Boot for efficient development and real-time 
 #### Text-to-Speech
 Using the Web Speech API, the game provides auditory feedback, crucial for blind players to receive game information.  
 
-####Gesture Controls
+#### Gesture Controls
 Players navigate the game with swipe, double-tap, and single-tap gestures, enabling easy interaction with minimal effort, especially important for blind users.  
 
+#### important note:
 This application only runs if the server is started on your own device and the game can only be joined if every player is in the same wifi.
