@@ -3,22 +3,22 @@ This is a prototype of the cardgame Werewolf and is designed specifically for vi
 
 ### Technologies which has been used for the development of the prototype:
 #### HTML as Frontend
-HTML forms the foundation of this web-based game, providing a simple UI. Since it's designed for visually impaired players, HTML ensures efficient performance with minimal visuals and easy navigation through swipe and tap gestures.  
+The webpage is divided into two sections: the top half displays essential game information, and the bottom half is for confirming roles or actions using swipe gestures and double-tap confirmations. 
 
 #### Cookies for Data Storage
-Cookies store session data, such as player status, ensuring players stay logged in and identified without re-authentication.  
+Cookies are used to store session data such as the player's username and lobby information, allowing for seamless re-entry without re-authentication.  
 
 #### WebSockets for Real-time Communication
-WebSockets enable low-latency, bidirectional communication for real-time interactions in the game, essential for smooth gameplay updates.  
+WebSockets are used to enable bidirectional, real-time communication between the client and server, crucial for immediate updates in gameplay, reducing latency and enhancing interactivity. [https://spring.io/guides/gs/messaging-stomp-websocket]
 
 #### STOMP Protocol
-STOMP, built on WebSockets, simplifies messaging, ensuring real-time game events are effectively communicated to clients.  
+[SSTOMP simplifies message delivery over WebSockets, ensuring efficient event distribution across clients.](https://en.wikipedia.org/wiki/Streaming_Text_Oriented_Messaging_Protocol)
 
 #### Spring Framework
 The backend uses Spring and Spring Boot for efficient development and real-time features, including WebSocket and STOMP integration, ensuring synchronization across players.  
 
 #### Text-to-Speech
-Using the Web Speech API, the game provides auditory feedback, crucial for blind players to receive game information.  
+[Using the Web Speech API, the game provides auditory feedback, crucial for blind players to receive game information.](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API)
 
 #### Gesture Controls
 Players navigate the game with swipe, double-tap, and single-tap gestures, enabling easy interaction with minimal effort, especially important for blind users.  
