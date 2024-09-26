@@ -9,7 +9,7 @@ The webpage is divided into two sections: the top half displays essential game i
 Cookies are used to store session data such as the player's username and lobby information, allowing for seamless re-entry without re-authentication.  
 
 #### WebSockets for Real-time Communication
-WebSockets are used to enable bidirectional, real-time communication between the client and server, crucial for immediate updates in gameplay, reducing latency and enhancing interactivity. [https://spring.io/guides/gs/messaging-stomp-websocket]
+[WebSockets are used to enable bidirectional, real-time communication between the client and server, crucial for immediate updates in gameplay, reducing latency and enhancing interactivity.](https://spring.io/guides/gs/messaging-stomp-websocket)
 
 #### STOMP Protocol
 [SSTOMP simplifies message delivery over WebSockets, ensuring efficient event distribution across clients.](https://en.wikipedia.org/wiki/Streaming_Text_Oriented_Messaging_Protocol)
@@ -18,10 +18,10 @@ WebSockets are used to enable bidirectional, real-time communication between the
 The backend uses Spring and Spring Boot for efficient development and real-time features, including WebSocket and STOMP integration, ensuring synchronization across players.  
 
 #### Text-to-Speech
-[Using the Web Speech API, the game provides auditory feedback, crucial for blind players to receive game information.](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API)
+[The Web Speech API's SpeechSynthesisUtterance interface converts text to speech, aiding blind users in receiving real-time information via audio.](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API)
 
 #### Gesture Controls
-Players navigate the game with swipe, double-tap, and single-tap gestures, enabling easy interaction with minimal effort, especially important for blind users.  
+Three key gestures are used: [swiping](https://swipe.js.org/) to select players, [double-tapping](https://api.jquery.com/dblclick/) to confirm, and single-tapping to replay text. These gestures minimize physical effort and are managed with Vanilla-JavaScript and jQuery. 
 
 #### Important Note:
 This application only runs if the server is started on your own device and the game can only be joined if every player is in the same wifi.
