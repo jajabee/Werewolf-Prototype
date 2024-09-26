@@ -23,5 +23,5 @@ Using the Web Speech API, the game provides auditory feedback, crucial for blind
 #### Gesture Controls
 Players navigate the game with swipe, double-tap, and single-tap gestures, enabling easy interaction with minimal effort, especially important for blind users.  
 
-#### important note:
+#### Important Note:
 This application only runs if the server is started on your own device and the game can only be joined if every player is in the same wifi.
